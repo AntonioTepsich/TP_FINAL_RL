@@ -3,6 +3,17 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# ignore .pt and runs
+*.pt
+runs/
+
+# PyTorch checkpoints
+checkpoints/
+*.ckpt
+
+# vscode
+.vscode/
+
 # C extensions
 *.so
 
