@@ -28,7 +28,7 @@ class VectorActorCritic(nn.Module):
 
 MODEL_PATH_NORM = "best_model_improved_full.pt"  # ✅ Usar el archivo con estadísticas
 MODEL_PATH_NO_NORM = "best_model_improved.pt"  # ✅ Usar el archivo sin estadísticas
-def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, use_normalization=None):
+def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, use_normalization=None, fast_mode=False):
     """
     Ejecuta el agente entrenado en el entorno Flappy Bird.
     
@@ -41,7 +41,9 @@ def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, u
                           - None (default): Auto-detectar desde checkpoint
                           - True: Forzar normalización (requiere estadísticas en checkpoint)
                           - False: Sin normalización
+        fast_mode: Si True, ejecuta sin renderizado y sin límite de velocidad (solo imprime score final)
     """
+    # fast_mode ahora es argumento explícito
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Cargar modelo + estadísticas ---
@@ -87,11 +89,13 @@ def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, u
     print()
 
     # --- Crear el entorno ---
-    env = gym.make("FlappyBird-v0", render_mode="human", use_lidar=True)
+    render_mode = "human" if not fast_mode else None
+    env = gym.make("FlappyBird-v0", render_mode=render_mode, use_lidar=True)
     obs, info = env.reset()
 
-    pygame.init()
-    clock = pygame.time.Clock()
+    if not fast_mode:
+        pygame.init()
+        clock = pygame.time.Clock()
 
     for ep in range(episodes):
         done = False
@@ -111,9 +115,8 @@ def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, u
                 logits, value = model(obs_t)
                 probs = torch.softmax(logits, dim=-1)
                 action = torch.argmax(probs, dim=-1).item()
-                
                 # Debug: mostrar info cada 30 frames
-                if debug and steps % 30 == 0:
+                if debug and not fast_mode and steps % 30 == 0:
                     print(f"Step {steps:3d} | Action: {action} | P(no-flap)={probs[0][0].item():.3f}, P(flap)={probs[0][1].item():.3f} | V={value.item():+.2f}")
 
             action_counts[action] += 1
@@ -121,36 +124,42 @@ def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, u
             done = terminated or truncated
             ep_reward += reward
             steps += 1
-            env.render()
-            clock.tick(fps)
+            if not fast_mode:
+                env.render()
+                clock.tick(fps)
 
-            if done:
-                print(f"\n{'='*70}")
-                print(f"[EP {ep+1}] Reward={ep_reward:.2f}  Steps={steps}")
-                flap_pct = 100*action_counts[1]/steps if steps > 0 else 0
-                print(f"  Actions: No-flap={action_counts[0]} ({100-flap_pct:.1f}%), Flap={action_counts[1]} ({flap_pct:.1f}%)")
-                print(f"{'='*70}\n")
-                obs, info = env.reset()
-                action_counts = [0, 0]
+        # Al terminar el episodio, mostrar resultados
+        print(f"\n{'='*70}")
+        print(f"[EP {ep+1}] Reward={ep_reward:.2f}  Steps={steps}")
+        # Mostrar score/caños atravesados si está en info
+        score = info.get('score', None)
+        if score is not None:
+            print(f"  Caños atravesados (score): {score}")
+        flap_pct = 100*action_counts[1]/steps if steps > 0 else 0
+        print(f"  Actions: No-flap={action_counts[0]} ({100-flap_pct:.1f}%), Flap={action_counts[1]} ({flap_pct:.1f}%)")
+        print(f"{'='*70}\n")
+        obs, info = env.reset()
+        action_counts = [0, 0]
 
     env.close()
-    pygame.quit()
+    if not fast_mode:
+        pygame.quit()
 
 
 if __name__ == "__main__":
     # Opciones de uso:
-    # 
-    # 1. Auto-detectar normalización (recomendado):
-    #    watch_agent(debug=True, episodes=3, fps=30)
     #
-    # 2. Forzar normalización (requiere estadísticas en checkpoint):
-    #    watch_agent(debug=True, episodes=3, fps=30, use_normalization=True)
+    # 1. Modo visual (render):
+    #    watch_agent(..., fast_mode=False)
     #
-    # 3. Sin normalización (observaciones crudas):
-    #    watch_agent(debug=True, episodes=3, fps=30, use_normalization=False)
+    # 2. Modo rápido (sin render, solo score):
+    #    watch_agent(..., fast_mode=True)
     #
-    # fps=30  -> velocidad normal
-    # fps=60  -> 2x velocidad
-    # fps=120 -> 4x velocidad
-    
-    watch_agent(debug=True, episodes=3, fps=30, use_normalization=False)
+    # Ejemplo modo visual:
+    # watch_agent(model_path="exp_20251112_173240/checkpoints/best_model_improved_full.pt", debug=True, episodes=3, fps=30, use_normalization=True, fast_mode=False)
+    #
+    # Ejemplo modo rápido:
+    # watch_agent(model_path="exp_20251112_173240/checkpoints/best_model_improved_full.pt", debug=False, episodes=3, use_normalization=True, fast_mode=True)
+
+    # Por defecto, modo visual:
+    watch_agent(model_path="exp_20251112_173240/checkpoints/best_model_improved_full.pt", debug=True, episodes=3, fps=30, use_normalization=True, fast_mode=True)

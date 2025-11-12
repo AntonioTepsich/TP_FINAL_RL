@@ -1,0 +1,142 @@
+# ============================================================================
+# PHASE 1: QUICK SEARCH - Búsqueda Rápida de Hiperparámetros Críticos
+# ============================================================================
+# Objetivo: Identificar mejoras obvias en parámetros de alto impacto
+# Duración estimada: 6 trials × 30 min = ~3 horas
+# Baseline: lr=3e-4, hidden=256, ent=0.02 (tu configuración actual)
+#
+# Estrategia: Random search enfocado en los 3 parámetros MÁS importantes:
+#   1. Learning Rate (lr_start) - Impacto CRÍTICO
+#   2. Hidden Size - Capacidad de la red
+#   3. Entropy (ent_start) - Balance exploración/explotación
+#
+# Uso:
+#   python run_experiment.py --config config_template.yaml \
+#       --search --search-config phase1_quick_search.yaml
+# ============================================================================
+
+strategy: random
+n_trials: 6
+seed: 42
+
+search_space:
+  # ==========================================================================
+  # 1. LEARNING RATE - PARÁMETRO MÁS CRÍTICO 🔥🔥🔥🔥🔥
+  # ==========================================================================
+  # Controla la velocidad de aprendizaje
+  # - Muy alto (>1e-3): Puede diverger o ser inestable
+  # - Muy bajo (<1e-4): Aprende muy lento, puede quedar atascado
+  #
+  # Tu baseline: 3e-4 (estándar para PPO)
+  # Exploración: Probar valores arriba y abajo
+
+  lr_start:
+    - 0.0001   # 1e-4  - Conservador (aprendizaje más lento pero estable)
+    - 0.0003   # 3e-4  - TU BASELINE ✓ (estándar PPO)
+    - 0.0005   # 5e-4  - Agresivo (aprendizaje más rápido)
+    - 0.001    # 1e-3  - Muy agresivo (puede ser inestable pero a veces mejor)
+
+  # ==========================================================================
+  # 2. HIDDEN SIZE - CAPACIDAD DEL MODELO 🔥🔥🔥🔥
+  # ==========================================================================
+  # Tamaño de las capas ocultas de la red neuronal
+  # - Más pequeño (128): Más rápido, menos expresivo
+  # - Más grande (512): Más expresivo, más lento, puede overfittear
+  #
+  # Tu baseline: 256 (balance razonable)
+  # Exploración: Probar más pequeño y más grande
+
+  hidden_size:
+    - 128      # Pequeño - Más rápido (~20% menos tiempo)
+    - 256      # TU BASELINE ✓ - Balance estándar
+    - 512      # Grande - Más capacidad (Flappy Bird podría beneficiarse)
+
+  # ==========================================================================
+  # 3. ENTROPY - EXPLORACIÓN VS EXPLOTACIÓN 🔥🔥🔥🔥
+  # ==========================================================================
+  # Coeficiente de entropía inicial (controla exploración)
+  # - Bajo (0.01): Menos exploración, explotación más temprana
+  # - Alto (0.03-0.05): Más exploración, evita mínimos locales
+  #
+  # Tu baseline: 0.02 (moderado)
+  # Exploración: Probar más y menos exploración
+
+  ent_start:
+    - 0.01     # Baja exploración - Converge más rápido
+    - 0.02     # TU BASELINE ✓ - Moderado
+    - 0.03     # Alta exploración - Explora más al inicio
+    - 0.05     # Muy alta exploración - Arriesgado pero puede encontrar mejores políticas
+
+  # ==========================================================================
+  # 4. LR SCHEDULE - BONUS (bajo impacto pero fácil de probar)
+  # ==========================================================================
+  # Cómo decae el learning rate durante el entrenamiento
+  # - cosine: Decaimiento suave (mejor para entrenamientos largos)
+  # - linear: Decaimiento lineal (más predecible)
+  #
+  # Tu baseline: cosine
+  # Exploración: Probar linear para comparar
+
+  lr_schedule:
+    - cosine   # TU BASELINE ✓ - Suave, recomendado
+    - linear   # Alternativa común
+
+# ============================================================================
+# NOTAS IMPORTANTES
+# ============================================================================
+#
+# 1. PARÁMETROS QUE *NO* ESTAMOS TOCANDO (y por qué):
+#    - gamma (0.99): Valor estándar casi universal en RL
+#    - lambda_gae (0.95): Valor estándar, menos impacto que LR
+#    - clip_epsilon (0.2): Estándar PPO, cambiar tiene poco impacto
+#    - vf_coef (0.5): Estándar, solo afinar en fase 2 si es necesario
+#    - n_envs (16): Suficiente paralelización, aumentar solo si sobran recursos
+#
+# 2. COMBINACIONES POSIBLES:
+#    - 4 lr_start × 3 hidden_size × 4 ent_start × 2 lr_schedule = 96 combinaciones
+#    - Random search probará 6 de estas 96 (más eficiente que grid)
+#
+# 3. QUÉ ESPERAR:
+#    - Baseline esperado: ~40 tubos (tu config actual)
+#    - Meta: Encontrar algo que llegue a 45-50+ tubos
+#    - Si encuentras 55+ tubos: ¡Jackpot! 🎉
+#
+# 4. CÓMO INTERPRETAR RESULTADOS:
+#    - Mira "best_score" (tubos pasados), no solo reward
+#    - Mira también la estabilidad (final_mean_score vs best_score)
+#    - Si lr muy alto causa crash → excluir en Fase 2
+#    - Si hidden=512 es mucho mejor → usar ese en Fase 2
+#
+# 5. DESPUÉS DE LA FASE 1:
+#    Ver resultados con:
+#      python view_results.py --bucket ppo-flappy-bird --best 6
+#
+#    Identificar patrones:
+#      - ¿Qué lr_start funcionó mejor?
+#      - ¿Hidden size más grande ayuda?
+#      - ¿Más exploración (ent_start) dio mejores resultados?
+#
+# 6. PRÓXIMOS PASOS:
+#    - Si encuentras mejoras claras → Crear phase2_focused_search.yaml
+#    - Si no hay mejoras → Considerar que tu baseline ya es bueno
+#    - Si hay crash/divergencia → Ajustar rangos en Fase 2
+#
+# ============================================================================
+# EJEMPLO DE EJECUCIÓN
+# ============================================================================
+#
+# En Colab o terminal:
+#
+# # 1. Ejecutar búsqueda
+# !python run_experiment.py \
+#     --config config_template.yaml \
+#     --search \
+#     --search-config phase1_quick_search.yaml
+#
+# # 2. Monitorear progreso (ejecutar en celda aparte)
+# !python view_results.py --bucket ppo-flappy-bird --compare --top 6
+#
+# # 3. Ver mejores resultados al terminar
+# !python view_results.py --bucket ppo-flappy-bird --best 6
+#
+# ============================================================================
