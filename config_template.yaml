@@ -1,0 +1,84 @@
+# Configuration Template for PPO Flappy Bird Training
+# This file contains the default configuration for running a single training experiment
+# You can modify these values and use this file with run_experiment.py
+
+# ============================================================================
+# ENVIRONMENT CONFIGURATION
+# ============================================================================
+n_envs: 16                    # Number of parallel environments
+rollout_steps: 256            # Steps per rollout (T)
+total_steps: 1000000          # Total training steps
+
+# ============================================================================
+# NETWORK ARCHITECTURE
+# ============================================================================
+hidden_size: 256              # Hidden layer size for the neural network
+
+# ============================================================================
+# LEARNING RATE SCHEDULE
+# ============================================================================
+lr_start: 0.0003              # Initial learning rate (3e-4)
+lr_end: 0.00001               # Final learning rate (1e-5)
+lr_schedule: cosine           # Schedule type: cosine, linear, or constant
+
+# ============================================================================
+# ENTROPY SCHEDULE
+# ============================================================================
+ent_start: 0.02               # Initial entropy coefficient
+ent_end: 0.005                # Final entropy coefficient
+ent_schedule: linear          # Schedule type: cosine, linear, or constant
+
+# ============================================================================
+# PPO HYPERPARAMETERS
+# ============================================================================
+clip_epsilon: 0.2             # PPO clipping parameter
+vf_coef: 0.5                  # Value function loss coefficient
+max_grad_norm: 0.5            # Maximum gradient norm for clipping
+gamma: 0.99                   # Discount factor
+lambda_gae: 0.95              # GAE lambda parameter
+epochs_per_update: 4          # Number of SGD epochs per PPO update
+minibatch_size: 1024          # Minibatch size for SGD
+
+# ============================================================================
+# OBSERVATION NORMALIZATION
+# ============================================================================
+normalize_obs: true           # Use online observation normalization
+
+# ============================================================================
+# GCS (GOOGLE CLOUD STORAGE) CONFIGURATION
+# ============================================================================
+# Set gcs_bucket to enable automatic upload to Google Cloud Storage
+# Leave as null to disable GCS and train locally only
+
+gcs_bucket: ppo-flappy-bird   # GCS bucket name (set to null to disable)
+gcs_project: quiet-sum-477223-g3  # GCP project ID (optional, uses ADC if null)
+experiment_id: null           # Experiment ID (auto-generated if null)
+upload_interval: 250000       # Upload checkpoints to GCS every N steps
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+log_dir: runs                 # TensorBoard log directory
+comment: flappy_bird_ppo      # Comment for TensorBoard run name
+checkpoint_interval: 250000   # Save local checkpoint every N steps
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+seed: null                    # Random seed (null for random)
+device: null                  # Device: cuda, cpu, or null for auto-detect
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# - To run a single experiment with this config:
+#     python run_experiment.py --config config_template.yaml
+#
+# - To disable GCS, set gcs_bucket to null
+#
+# - All hyperparameters can be overridden via command line:
+#     python train_vector_improved.py --lr-start 0.001 --hidden-size 512 --gcs-bucket my-bucket
+#
+# - For hyperparameter search, create a search configuration file
+#   (see search_config_example.yaml) and run:
+#     python run_experiment.py --config config_template.yaml --search --search-config search_config_example.yaml

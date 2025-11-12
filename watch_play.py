@@ -26,9 +26,22 @@ class VectorActorCritic(nn.Module):
         value = self.value_head(features)
         return logits, value
 
-MODEL_PATH = "best_model_improved_full.pt"  # ✅ Usar el archivo con estadísticas
-
-def watch_agent(model_path=MODEL_PATH, episodes=5, debug=True, fps=60):
+MODEL_PATH_NORM = "best_model_improved_full.pt"  # ✅ Usar el archivo con estadísticas
+MODEL_PATH_NO_NORM = "best_model_improved.pt"  # ✅ Usar el archivo sin estadísticas
+def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, use_normalization=None):
+    """
+    Ejecuta el agente entrenado en el entorno Flappy Bird.
+    
+    Args:
+        model_path: Ruta al archivo del modelo
+        episodes: Número de episodios a ejecutar
+        debug: Mostrar información de debug
+        fps: Frames por segundo (30=normal, 60=2x, 120=4x)
+        use_normalization: Si normalizar observaciones. 
+                          - None (default): Auto-detectar desde checkpoint
+                          - True: Forzar normalización (requiere estadísticas en checkpoint)
+                          - False: Sin normalización
+    """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Cargar modelo + estadísticas ---
@@ -39,22 +52,37 @@ def watch_agent(model_path=MODEL_PATH, episodes=5, debug=True, fps=60):
     model.load_state_dict(checkpoint['model'])
     model.eval().to(device)
     
-    # Cargar estadísticas de normalización
-    if 'obs_mean' in checkpoint and 'obs_var' in checkpoint:
+    # Determinar si usar normalización
+    has_normalization_stats = 'obs_mean' in checkpoint and 'obs_var' in checkpoint
+    
+    if use_normalization is None:
+        # Auto-detectar
+        apply_normalization = has_normalization_stats
+    else:
+        # Usuario eligió manualmente
+        apply_normalization = use_normalization
+        if apply_normalization and not has_normalization_stats:
+            print("❌ ERROR: Se solicitó normalización pero el checkpoint no tiene estadísticas")
+            print("   Usa use_normalization=False o carga un modelo con estadísticas")
+            return
+    
+    # Cargar estadísticas si vamos a normalizar
+    if apply_normalization:
         obs_mean = checkpoint['obs_mean']
         obs_var = checkpoint['obs_var']
         obs_std = np.sqrt(obs_var + 1e-8)
-        use_normalization = True
-        print(f"✅ Modelo cargado!")
-        print(f"📊 Estadísticas de normalización encontradas:")
+        print(f"✅ Modelo cargado con NORMALIZACIÓN")
+        print(f"📊 Estadísticas de normalización:")
         print(f"   Mean: min={obs_mean.min():.2f}, max={obs_mean.max():.2f}, avg={obs_mean.mean():.2f}")
         print(f"   Std:  min={obs_std.min():.2f}, max={obs_std.max():.2f}, avg={obs_std.mean():.2f}")
-        if 'best_reward' in checkpoint:
-            print(f"   Best reward durante entrenamiento: {checkpoint['best_reward']:.2f}")
     else:
-        print("⚠️  No se encontraron estadísticas de normalización")
-        print("   Usando observaciones crudas (puede no funcionar bien)")
-        use_normalization = False
+        print(f"✅ Modelo cargado SIN normalización")
+        print(f"⚠️  Usando observaciones crudas")
+        obs_mean = None
+        obs_std = None
+    
+    if 'best_reward' in checkpoint:
+        print(f"   Best reward durante entrenamiento: {checkpoint['best_reward']:.2f}")
     
     print()
 
@@ -72,8 +100,8 @@ def watch_agent(model_path=MODEL_PATH, episodes=5, debug=True, fps=60):
         action_counts = [0, 0]  # [no_flap, flap]
         
         while not done:
-            # ✅ NORMALIZAR con las estadísticas del entrenamiento
-            if use_normalization:
+            # ✅ NORMALIZAR según configuración
+            if apply_normalization:
                 obs_normalized = (obs - obs_mean) / obs_std
                 obs_t = torch.tensor(obs_normalized, dtype=torch.float32, device=device).unsqueeze(0)
             else:
@@ -110,9 +138,19 @@ def watch_agent(model_path=MODEL_PATH, episodes=5, debug=True, fps=60):
 
 
 if __name__ == "__main__":
-    # Opciones:
+    # Opciones de uso:
+    # 
+    # 1. Auto-detectar normalización (recomendado):
+    #    watch_agent(debug=True, episodes=3, fps=30)
+    #
+    # 2. Forzar normalización (requiere estadísticas en checkpoint):
+    #    watch_agent(debug=True, episodes=3, fps=30, use_normalization=True)
+    #
+    # 3. Sin normalización (observaciones crudas):
+    #    watch_agent(debug=True, episodes=3, fps=30, use_normalization=False)
+    #
     # fps=30  -> velocidad normal
     # fps=60  -> 2x velocidad
     # fps=120 -> 4x velocidad
-    # debug=True -> mostrar probabilidades cada 30 frames
-    watch_agent(debug=True, episodes=3, fps=60)
+    
+    watch_agent(debug=True, episodes=3, fps=30, use_normalization=False)

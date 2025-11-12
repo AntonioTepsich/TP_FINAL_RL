@@ -1,0 +1,142 @@
+# Hyperparameter Search Configuration Example
+# This file defines the search space and strategy for hyperparameter optimization
+# Use this with run_experiment.py --search mode
+
+# ============================================================================
+# SEARCH STRATEGY
+# ============================================================================
+# Strategy options:
+#   - grid: Try all combinations of parameters (exhaustive)
+#   - random: Sample random combinations (more efficient for large spaces)
+strategy: random
+
+# Number of trials for random search (ignored for grid search)
+n_trials: 20
+
+# Random seed for reproducibility (optional)
+seed: 42
+
+# ============================================================================
+# SEARCH SPACE
+# ============================================================================
+# Define the search space for each hyperparameter
+# Each parameter should be a list of values to try
+# For grid search: all combinations will be tested
+# For random search: random samples will be drawn from these options
+
+search_space:
+  # Learning rate parameters
+  lr_start:
+    - 0.0001      # 1e-4
+    - 0.0003      # 3e-4 (default)
+    - 0.0005      # 5e-4
+    - 0.001       # 1e-3
+
+  lr_end:
+    - 0.000001    # 1e-6
+    - 0.00001     # 1e-5 (default)
+    - 0.00005     # 5e-5
+
+  lr_schedule:
+    - cosine
+    - linear
+
+  # Entropy parameters
+  ent_start:
+    - 0.01
+    - 0.02        # default
+    - 0.05
+
+  ent_end:
+    - 0.001
+    - 0.005       # default
+    - 0.01
+
+  # Architecture
+  hidden_size:
+    - 128
+    - 256         # default
+    - 512
+
+  # PPO parameters
+  clip_epsilon:
+    - 0.1
+    - 0.2         # default
+    - 0.3
+
+  vf_coef:
+    - 0.25
+    - 0.5         # default
+    - 1.0
+
+  # Training dynamics
+  n_envs:
+    - 8
+    - 16          # default
+    - 32
+
+  rollout_steps:
+    - 128
+    - 256         # default
+    - 512
+
+  epochs_per_update:
+    - 3
+    - 4           # default
+    - 5
+    - 10
+
+# ============================================================================
+# NOTES ON SEARCH STRATEGIES
+# ============================================================================
+
+# GRID SEARCH:
+#   - Tries ALL combinations
+#   - Good for small search spaces (< 100 combinations)
+#   - In this example: 4×3×2 × 3×3 × 3 × 3×3 × 3×3×4 = 104,976 combinations!
+#   - Use with caution!
+#
+# RANDOM SEARCH:
+#   - Samples random combinations
+#   - Good for large search spaces
+#   - Set n_trials to control number of experiments (e.g., 20-50)
+#   - Often more efficient than grid search
+#
+# RECOMMENDATIONS:
+#   1. Start with random search (n_trials = 10-20)
+#   2. Identify promising regions
+#   3. Create a smaller grid search around best configurations
+#   4. Use the best config for final long training run
+
+# ============================================================================
+# EXAMPLE: SMALLER SEARCH SPACE FOR QUICK TESTING
+# ============================================================================
+# Uncomment this section and comment the above to test with fewer parameters:
+#
+# search_space:
+#   lr_start:
+#     - 0.0001
+#     - 0.0003
+#   hidden_size:
+#     - 256
+#     - 512
+#   clip_epsilon:
+#     - 0.1
+#     - 0.2
+#
+# With grid search: only 2×2×2 = 8 combinations
+# With random search (n_trials=5): only 5 experiments
+
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# Run random search with this configuration:
+#   python run_experiment.py --config config_template.yaml --search --search-config search_config_example.yaml
+#
+# Run grid search (warning: can be VERY slow with large search spaces):
+#   1. Edit this file and set strategy: grid
+#   2. python run_experiment.py --config config_template.yaml --search --search-config search_config_example.yaml
+#
+# View results after search:
+#   python view_results.py --bucket ppo-flappy-bird

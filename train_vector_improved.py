@@ -5,6 +5,8 @@
 - LR y entropy schedules
 - Logging detallado
 - TensorBoard logging completo
+- GCS Integration (Google Cloud Storage)
+- CLI arguments support
 """
 import gymnasium as gym
 import numpy as np
@@ -14,6 +16,9 @@ import flappy_bird_gymnasium
 from ppo import PPODiagnostic
 from tensorboard_logger import TensorBoardLogger
 import warnings
+import argparse
+import os
+from pathlib import Path
 warnings.filterwarnings('ignore')
 
 # ============================================================================
@@ -159,74 +164,202 @@ def cosine_schedule(start, end, progress):
     return end + (start - end) * 0.5 * (1 + np.cos(np.pi * progress))
 
 # ============================================================================
+# ARGUMENT PARSER
+# ============================================================================
+def parse_args():
+    """Parse command line arguments for training configuration."""
+    parser = argparse.ArgumentParser(description="Train PPO agent for Flappy Bird with GCS support")
+
+    # Environment
+    parser.add_argument("--n-envs", type=int, default=16, help="Number of parallel environments")
+    parser.add_argument("--rollout-steps", type=int, default=256, help="Steps per rollout (T)")
+    parser.add_argument("--total-steps", type=int, default=1_000_000, help="Total training steps")
+
+    # Architecture
+    parser.add_argument("--hidden-size", type=int, default=256, help="Hidden layer size")
+
+    # Learning rates
+    parser.add_argument("--lr-start", type=float, default=3e-4, help="Initial learning rate")
+    parser.add_argument("--lr-end", type=float, default=1e-5, help="Final learning rate")
+    parser.add_argument("--lr-schedule", type=str, default="cosine", choices=["cosine", "linear", "constant"])
+
+    # Entropy
+    parser.add_argument("--ent-start", type=float, default=0.02, help="Initial entropy coefficient")
+    parser.add_argument("--ent-end", type=float, default=0.005, help="Final entropy coefficient")
+    parser.add_argument("--ent-schedule", type=str, default="linear", choices=["linear", "cosine", "constant"])
+
+    # PPO hyperparameters
+    parser.add_argument("--clip-epsilon", type=float, default=0.2, help="PPO clip epsilon")
+    parser.add_argument("--vf-coef", type=float, default=0.5, help="Value function coefficient")
+    parser.add_argument("--max-grad-norm", type=float, default=0.5, help="Max gradient norm for clipping")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
+    parser.add_argument("--lambda-gae", type=float, default=0.95, help="GAE lambda")
+    parser.add_argument("--epochs-per-update", type=int, default=4, help="SGD epochs per PPO update")
+    parser.add_argument("--minibatch-size", type=int, default=1024, help="Minibatch size for SGD")
+
+    # Normalization
+    parser.add_argument("--normalize-obs", type=bool, default=True, help="Use observation normalization")
+
+    # GCS Configuration
+    parser.add_argument("--gcs-bucket", type=str, default=None, help="GCS bucket name (enables GCS upload)")
+    parser.add_argument("--gcs-project", type=str, default=None, help="GCP project ID")
+    parser.add_argument("--experiment-id", type=str, default=None, help="Experiment ID (auto-generated if None)")
+    parser.add_argument("--upload-interval", type=int, default=250_000, help="Upload checkpoints every N steps")
+
+    # Logging
+    parser.add_argument("--log-dir", type=str, default="runs", help="TensorBoard log directory")
+    parser.add_argument("--comment", type=str, default="flappy_bird_ppo", help="Comment for TensorBoard run")
+    parser.add_argument("--checkpoint-interval", type=int, default=250_000, help="Save checkpoint every N steps")
+
+    # Seeds and device
+    parser.add_argument("--seed", type=int, default=None, help="Random seed")
+    parser.add_argument("--device", type=str, default=None, help="Device (cuda/cpu, auto-detected if None)")
+
+    return parser.parse_args()
+
+def get_schedule_fn(schedule_type):
+    """Get schedule function by name."""
+    if schedule_type == "cosine":
+        return cosine_schedule
+    elif schedule_type == "linear":
+        return linear_schedule
+    elif schedule_type == "constant":
+        return lambda start, end, progress: start
+    else:
+        raise ValueError(f"Unknown schedule type: {schedule_type}")
+
+# ============================================================================
 # MAIN
 # ============================================================================
 if __name__ == "__main__":
-    print("🚀 VERSIÓN MEJORADA - CON TODAS LAS FIXES + TENSORBOARD")
+    args = parse_args()
+    print("🚀 VERSIÓN MEJORADA - CON TODAS LAS FIXES + TENSORBOARD + GCS")
     print("=" * 70)
-    
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Set seed if provided
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
+        print(f"🎲 Seed: {args.seed}")
+
+    # Device
+    device = args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu")
     print(f"📱 Device: {device}")
     if device == "cuda":
         print(f"🎮 GPU: {torch.cuda.get_device_name(0)}")
-    
-    # CONFIGURACIÓN
-    N_ENVS = 16
-    T = 256
-    TOTAL_STEPS = 1_000_000
-    
-    # Hyperparams
-    LR_START = 3e-4
-    LR_END = 1e-5
-    ENT_START = 0.02
-    ENT_END = 0.005
-    
+
+    # Get configuration from args
+    N_ENVS = args.n_envs
+    T = args.rollout_steps
+    TOTAL_STEPS = args.total_steps
+
+    LR_START = args.lr_start
+    LR_END = args.lr_end
+    ENT_START = args.ent_start
+    ENT_END = args.ent_end
+
     print(f"⚙️  {N_ENVS} envs × {T} steps")
     print(f"🎯 Target: {TOTAL_STEPS:,} steps")
-    print(f"📊 LR schedule: {LR_START:.0e} → {LR_END:.0e} (cosine)")
-    print(f"🎲 Entropy schedule: {ENT_START:.3f} → {ENT_END:.3f} (linear)")
+    print(f"📊 LR schedule: {LR_START:.0e} → {LR_END:.0e} ({args.lr_schedule})")
+    print(f"🎲 Entropy schedule: {ENT_START:.3f} → {ENT_END:.3f} ({args.ent_schedule})")
+
+    # Initialize GCS manager if bucket provided
+    gcs_manager = None
+    if args.gcs_bucket:
+        try:
+            from gcs_manager import GCSManager
+            gcs_manager = GCSManager(
+                bucket_name=args.gcs_bucket,
+                project_id=args.gcs_project,
+                experiment_id=args.experiment_id
+            )
+            print(f"☁️  GCS enabled: gs://{args.gcs_bucket}")
+            print(f"📦 Experiment ID: {gcs_manager.experiment_id}")
+        except Exception as e:
+            print(f"⚠️  GCS initialization failed: {e}")
+            print("   Continuing without GCS...")
+            gcs_manager = None
+
     print("=" * 70)
-    
+
+    # Get schedule functions
+    lr_schedule_fn = get_schedule_fn(args.lr_schedule)
+    ent_schedule_fn = get_schedule_fn(args.ent_schedule)
+
     # Crear TensorBoard Logger
-    logger = TensorBoardLogger(comment="flappy_bird_ppo")
-    
+    logger = TensorBoardLogger(comment=args.comment, log_dir=args.log_dir)
+
+    # Build config dictionary
+    config = {
+        'n_envs': N_ENVS,
+        'rollout_steps': T,
+        'total_steps': TOTAL_STEPS,
+        'hidden_size': args.hidden_size,
+        'lr_start': LR_START,
+        'lr_end': LR_END,
+        'lr_schedule': args.lr_schedule,
+        'ent_start': ENT_START,
+        'ent_end': ENT_END,
+        'ent_schedule': args.ent_schedule,
+        'gamma': args.gamma,
+        'lambda_gae': args.lambda_gae,
+        'clip_epsilon': args.clip_epsilon,
+        'vf_coef': args.vf_coef,
+        'max_grad_norm': args.max_grad_norm,
+        'epochs_per_update': args.epochs_per_update,
+        'minibatch_size': args.minibatch_size,
+        'normalize_obs': args.normalize_obs,
+        'device': device,
+        'seed': args.seed
+    }
+
+    # Save config to GCS if enabled
+    if gcs_manager:
+        gcs_manager.save_config(config)
+
     # Log hiperparámetros iniciales como texto
     hparams_text = f"""
     ## Hyperparameters
     - **N_ENVS**: {N_ENVS}
     - **T (steps per rollout)**: {T}
     - **TOTAL_STEPS**: {TOTAL_STEPS:,}
+    - **Hidden Size**: {args.hidden_size}
     - **LR_START**: {LR_START:.0e}
     - **LR_END**: {LR_END:.0e}
+    - **LR Schedule**: {args.lr_schedule}
     - **ENT_START**: {ENT_START}
     - **ENT_END**: {ENT_END}
-    - **Gamma**: 0.99
-    - **Lambda (GAE)**: 0.95
-    - **Clip Epsilon**: 0.2
-    - **VF Coef**: 0.5
-    - **Max Grad Norm**: 0.5
+    - **ENT Schedule**: {args.ent_schedule}
+    - **Gamma**: {args.gamma}
+    - **Lambda (GAE)**: {args.lambda_gae}
+    - **Clip Epsilon**: {args.clip_epsilon}
+    - **VF Coef**: {args.vf_coef}
+    - **Max Grad Norm**: {args.max_grad_norm}
+    - **Epochs per Update**: {args.epochs_per_update}
+    - **Minibatch Size**: {args.minibatch_size}
     - **Device**: {device}
+    - **Seed**: {args.seed}
     """
     logger.log_text("Configuration", hparams_text)
-    
+
     # Crear ambientes CON normalización
-    vec = VecEnv(n_envs=N_ENVS, normalize=True)
+    vec = VecEnv(n_envs=N_ENVS, normalize=args.normalize_obs)
     obs = vec.reset()
     obs_dim = obs.shape[1]
-    
+
     print(f"\n✅ Observaciones normalizadas: dim={obs_dim}")
-    
+
     # Modelo
-    model = VectorActorCritic(obs_dim=obs_dim, n_actions=2, hidden=256)
-    
+    model = VectorActorCritic(obs_dim=obs_dim, n_actions=2, hidden=args.hidden_size)
+
     # Agent con diagnósticos (verbose=False para no spammear)
     agent = PPODiagnostic(
-        model, 
-        lr=LR_START, 
-        clip_eps=0.2, 
+        model,
+        lr=LR_START,
+        clip_eps=args.clip_epsilon,
         ent_coef=ENT_START,
-        vf_coef=0.5, 
-        max_grad_norm=0.5, 
+        vf_coef=args.vf_coef,
+        max_grad_norm=args.max_grad_norm,
         device=device,
         verbose=False  # Solo mostraremos logs custom
     )
@@ -245,12 +378,12 @@ if __name__ == "__main__":
     try:
         while global_steps < TOTAL_STEPS:
             rollout_start = time.time()
-            
+
             # Update schedules
             progress = global_steps / TOTAL_STEPS
-            current_lr = cosine_schedule(LR_START, LR_END, progress)
-            current_ent = linear_schedule(ENT_START, ENT_END, progress)
-            
+            current_lr = lr_schedule_fn(LR_START, LR_END, progress)
+            current_ent = ent_schedule_fn(ENT_START, ENT_END, progress)
+
             # Aplicar schedules
             for param_group in agent.opt.param_groups:
                 param_group['lr'] = current_lr
@@ -309,20 +442,20 @@ if __name__ == "__main__":
             for n in range(N_ENVS):
                 adv, ret = gae_advantages(
                     rews_t[:,n], torch.cat([vals_t[:,n], last_v[n:n+1]]), done_t[:,n],
-                    gamma=0.99, lam=0.95
+                    gamma=args.gamma, lam=args.lambda_gae
                 )
                 adv_list.append(adv)
                 ret_list.append(ret)
                 val_old_list.append(vals_t[:,n])
-            
+
             advs = torch.stack(adv_list).transpose(0,1).reshape(-1)
             rets = torch.stack(ret_list).transpose(0,1).reshape(-1)
             vals_old = torch.stack(val_old_list).transpose(0,1).reshape(-1)
 
             batch = (obs_t, acts_t, logp_t0, rets, advs, vals_old)
-            
+
             # Update con métricas
-            metrics = agent.update(batch, epochs=4, minibatch_size=1024)
+            metrics = agent.update(batch, epochs=args.epochs_per_update, minibatch_size=args.minibatch_size)
             update_count += 1
             
             learn_time = time.time() - learn_start
@@ -435,71 +568,124 @@ if __name__ == "__main__":
                 # Save best
                 if episode_rewards and mean_rew > best_mean_reward:
                     best_mean_reward = mean_rew
-                    
+
                     # Guardar solo el modelo (backward compatibility)
                     torch.save(model.state_dict(), 'best_model_improved.pt')
-                    
+
                     # Guardar modelo + estadísticas de normalización
                     save_dict = {
                         'model': model.state_dict(),
                         'best_reward': mean_rew,
                         'global_steps': global_steps
                     }
-                    
+
                     # Agregar estadísticas de normalización si existen
                     norm_stats = vec.get_normalization_stats()
                     if norm_stats is not None:
                         save_dict['obs_mean'] = norm_stats['mean']
                         save_dict['obs_var'] = norm_stats['var']
                         save_dict['obs_count'] = norm_stats['count']
-                    
+
                     torch.save(save_dict, 'best_model_improved_full.pt')
                     print(f"✅ Best model saved! Reward: {mean_rew:.2f}\n")
-            
+
+                    # Upload to GCS
+                    if gcs_manager:
+                        gcs_manager.upload_file('best_model_improved.pt', 'checkpoints/best_model_improved.pt', async_upload=True)
+                        gcs_manager.upload_file('best_model_improved_full.pt', 'checkpoints/best_model_improved_full.pt', async_upload=True)
+
             # Checkpoints
-            if global_steps % 250_000 == 0 and global_steps > 0:
+            if global_steps % args.checkpoint_interval == 0 and global_steps > 0:
+                checkpoint_path = f'checkpoint_improved_{global_steps}.pt'
                 torch.save({
                     'model': model.state_dict(),
                     'optimizer': agent.opt.state_dict(),
                     'steps': global_steps,
                     'lr': current_lr,
                     'ent_coef': current_ent,
-                }, f'checkpoint_improved_{global_steps}.pt')
+                }, checkpoint_path)
                 print(f"💾 Checkpoint saved: {global_steps:,}\n")
+
+                # Upload to GCS
+                if gcs_manager:
+                    gcs_manager.upload_file(checkpoint_path, f'checkpoints/{checkpoint_path}', async_upload=True)
+
+                    # Upload TensorBoard logs periodically
+                    if hasattr(logger, 'log_dir'):
+                        gcs_manager.upload_directory(logger.log_dir, 'tensorboard', pattern='events.*', async_upload=True)
     
     finally:
+        # Close environments and logger
         vec.close()
         logger.close()
-    
+
+        # Wait for any pending GCS uploads
+        if gcs_manager:
+            print("\n⏳ Esperando uploads a GCS...")
+            gcs_manager.wait_for_uploads(timeout=60)
+
     # Log hiperparámetros finales para comparación
     final_metrics = {}
     if episode_rewards:
         final_metrics['final_mean_reward'] = np.mean(episode_rewards[-100:]) if len(episode_rewards) >= 100 else np.mean(episode_rewards)
         final_metrics['final_max_reward'] = max(episode_rewards)
         final_metrics['total_episodes'] = len(episode_rewards)
-    
+        final_metrics['best_reward'] = best_mean_reward
+
+    # Add more detailed metrics
+    if episode_scores:
+        final_metrics['final_mean_score'] = np.mean(episode_scores[-100:]) if len(episode_scores) >= 100 else np.mean(episode_scores)
+        final_metrics['best_score'] = max(episode_scores) if episode_scores else 0
+
+    total_time = (time.time() - start_time) / 60
+    final_metrics['training_time_minutes'] = total_time
+    final_metrics['steps_per_second'] = TOTAL_STEPS / (total_time * 60) if total_time > 0 else 0
+    final_metrics['total_updates'] = update_count
+
     hparams = {
         'n_envs': N_ENVS,
         'rollout_steps': T,
+        'hidden_size': args.hidden_size,
         'lr_start': LR_START,
         'lr_end': LR_END,
+        'lr_schedule': args.lr_schedule,
         'ent_start': ENT_START,
         'ent_end': ENT_END,
-        'gamma': 0.99,
-        'lambda_gae': 0.95,
-        'clip_eps': 0.2,
-        'vf_coef': 0.5,
-        'max_grad_norm': 0.5,
+        'ent_schedule': args.ent_schedule,
+        'gamma': args.gamma,
+        'lambda_gae': args.lambda_gae,
+        'clip_eps': args.clip_epsilon,
+        'vf_coef': args.vf_coef,
+        'max_grad_norm': args.max_grad_norm,
+        'epochs_per_update': args.epochs_per_update,
+        'minibatch_size': args.minibatch_size,
     }
-    
+
     logger.log_hparams(hparams, final_metrics)
-    
-    total_time = (time.time() - start_time) / 60
+
+    # Save metrics to GCS
+    if gcs_manager:
+        gcs_manager.save_metrics(final_metrics, 'final_metrics.json')
+
+        # Final upload of TensorBoard logs
+        if hasattr(logger, 'log_dir') and os.path.exists(logger.log_dir):
+            print("📤 Uploading final TensorBoard logs to GCS...")
+            gcs_manager.upload_directory(logger.log_dir, 'tensorboard', pattern='*', async_upload=False)
+
+        # Wait for final uploads
+        gcs_manager.wait_for_uploads()
+        print(f"✅ All files uploaded to gs://{args.gcs_bucket}/experiments/{gcs_manager.experiment_id}/")
+
     print("\n" + "=" * 70)
     print(f"✅ COMPLETADO en {total_time:.2f}min")
     if episode_rewards:
         print(f"🎯 Mejor reward: {max(episode_rewards):.2f}")
         print(f"📈 Reward final (últimos 100): {np.mean(episode_rewards[-100:]):.2f}")
+    if episode_scores:
+        print(f"🎮 Mejor score (tubos): {max(episode_scores)}")
+        print(f"📊 Score final (últimos 100): {np.mean(episode_scores[-100:]):.2f}")
     print(f"🚀 Velocidad promedio: {TOTAL_STEPS/(total_time*60):.0f} steps/sec")
     print(f"🔄 Updates totales: {update_count}")
+    if gcs_manager:
+        print(f"☁️  Experiment ID: {gcs_manager.experiment_id}")
     print("=" * 70)
