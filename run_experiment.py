@@ -106,12 +106,26 @@ def build_command_args(config: Dict[str, Any], base_config: Dict[str, Any]) -> L
     return args
 
 
-def run_single_experiment(config: Dict[str, Any], base_config: Dict[str, Any]) -> Dict[str, Any]:
+def run_single_experiment(config: Dict[str, Any], base_config: Dict[str, Any], experiment_id: Optional[str] = None) -> Dict[str, Any]:
     """Run a single training experiment."""
     print("\n" + "=" * 80)
     print(f"Starting experiment with config:")
     print(json.dumps(config, indent=2))
     print("=" * 80 + "\n")
+
+    # Generate unique experiment ID if not provided
+    if experiment_id is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        import uuid
+        experiment_id = f"exp_{timestamp}_{str(uuid.uuid4())[:8]}"
+
+    # Add experiment_id to config if not already there
+    if 'experiment_id' not in config:
+        config['experiment_id'] = experiment_id
+
+    # Ensure each experiment has a unique comment for TensorBoard
+    if 'comment' not in config:
+        config['comment'] = experiment_id
 
     # Build command
     cmd_args = build_command_args(config, base_config)
@@ -181,8 +195,13 @@ def run_hyperparameter_search(
         print(f"Experiment {i+1}/{len(configs)}")
         print(f"{'='*80}")
 
+        # Generate unique experiment ID for this configuration
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        import uuid
+        experiment_id = f"search_{timestamp}_trial{i+1:03d}_{str(uuid.uuid4())[:8]}"
+
         try:
-            result = run_single_experiment(config, base_config)
+            result = run_single_experiment(config, base_config, experiment_id=experiment_id)
             results.append(result)
 
             # Save intermediate results

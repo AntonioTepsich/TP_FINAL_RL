@@ -1,0 +1,47 @@
+# ============================================================================
+# PHASE 2: FOCUSED SEARCH - Búsqueda Fina de Hiperparámetros
+# ============================================================================
+# Basado en la mejor configuración de la fase 1:
+# hidden_size: 128, lr_start: 0.001, ent_start: 0.01, lr_schedule: cosine
+# lr_end: 1e-5, ent_end: 0.005, ent_schedule: linear
+# ============================================================================
+strategy: random
+n_trials: 8
+seed: 42
+
+search_space:
+  # Explora alrededor de los mejores valores encontrados
+  lr_start:
+    - 0.0007   # Un poco menor
+    - 0.001    # Mejor valor anterior
+    - 0.0015   # Un poco mayor
+
+  lr_end:
+    - 1e-5     # Igual que antes
+    - 5e-6     # Más bajo
+
+  hidden_size:
+    - 128      # Mejor valor anterior
+    - 192      # Un poco mayor
+
+  ent_start:
+    - 0.008    # Un poco menor
+    - 0.01     # Mejor valor anterior
+    - 0.015    # Un poco mayor
+
+  ent_end:
+    - 0.003    # Más bajo
+    - 0.005    # Igual que antes
+
+  lr_schedule:
+    - cosine   # Mejor valor anterior
+
+  ent_schedule:
+    - linear   # Mejor valor anterior
+
+# ============================================================================
+
+# Notas:
+# - Si ves mejoras claras, puedes afinar aún más los rangos.
+# - Si los resultados son similares, tu configuración ya es casi óptima.
+# - Puedes aumentar n_trials si tienes más recursos.

@@ -28,7 +28,7 @@ class VectorActorCritic(nn.Module):
 
 MODEL_PATH_NORM = "best_model_improved_full.pt"  # ✅ Usar el archivo con estadísticas
 MODEL_PATH_NO_NORM = "best_model_improved.pt"  # ✅ Usar el archivo sin estadísticas
-def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, use_normalization=None, fast_mode=False):
+def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, use_normalization=None, fast_mode=False, print_episode_summary=True):
     """
     Ejecuta el agente entrenado en el entorno Flappy Bird.
     
@@ -48,9 +48,22 @@ def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, u
 
     # --- Cargar modelo + estadísticas ---
     print(f"📂 Cargando desde {model_path}...")
+
     checkpoint = torch.load(model_path, map_location=device)
-    
-    model = VectorActorCritic(obs_dim=180, n_actions=2)
+
+    # Detectar tamaño de capa oculta automáticamente
+    def get_hidden_size_from_checkpoint(ckpt):
+        if 'model' in ckpt:
+            w = ckpt['model'].get('shared.0.weight', None)
+            if w is not None:
+                return w.shape[0]
+        for k in ckpt.get('model', {}):
+            if k.endswith('shared.0.weight'):
+                return ckpt['model'][k].shape[0]
+        
+
+    hidden_size = get_hidden_size_from_checkpoint(checkpoint)
+    model = VectorActorCritic(obs_dim=180, n_actions=2, hidden=hidden_size)
     model.load_state_dict(checkpoint['model'])
     model.eval().to(device)
     
@@ -91,12 +104,20 @@ def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, u
     # --- Crear el entorno ---
     render_mode = "human" if not fast_mode else None
     env = gym.make("FlappyBird-v0", render_mode=render_mode, use_lidar=True)
+
     obs, info = env.reset()
+    # Diagnóstico: comparar observación y espacio declarado
+    print("Obs shape:", np.shape(obs), "Obs dtype:", type(obs))
+    print("Space shape:", env.observation_space.shape, "Space dtype:", env.observation_space.dtype)
+    print("Obs min/max:", np.min(obs), np.max(obs))
+    print("Space min/max:", env.observation_space.low.min(), env.observation_space.high.max())
 
     if not fast_mode:
         pygame.init()
         clock = pygame.time.Clock()
 
+
+    results = []
     for ep in range(episodes):
         done = False
         ep_reward = 0
@@ -128,22 +149,30 @@ def watch_agent(model_path=MODEL_PATH_NO_NORM, episodes=5, debug=True, fps=30, u
                 env.render()
                 clock.tick(fps)
 
-        # Al terminar el episodio, mostrar resultados
-        print(f"\n{'='*70}")
-        print(f"[EP {ep+1}] Reward={ep_reward:.2f}  Steps={steps}")
-        # Mostrar score/caños atravesados si está en info
         score = info.get('score', None)
-        if score is not None:
-            print(f"  Caños atravesados (score): {score}")
         flap_pct = 100*action_counts[1]/steps if steps > 0 else 0
-        print(f"  Actions: No-flap={action_counts[0]} ({100-flap_pct:.1f}%), Flap={action_counts[1]} ({flap_pct:.1f}%)")
-        print(f"{'='*70}\n")
+        results.append({
+            'reward': ep_reward,
+            'steps': steps,
+            'score': score,
+            'flap_pct': flap_pct
+        })
+        # Al terminar el episodio, mostrar resultados solo si print_episode_summary
+        if print_episode_summary:
+            print(f"\n{'='*70}")
+            print(f"[EP {ep+1}] Reward={ep_reward:.2f}  Steps={steps}")
+            if score is not None:
+                print(f"  Caños atravesados (score): {score}")
+            print(f"  Actions: No-flap={action_counts[0]} ({100-flap_pct:.1f}%), Flap={action_counts[1]} ({flap_pct:.1f}%)")
+            print(f"{'='*70}\n")
         obs, info = env.reset()
         action_counts = [0, 0]
 
     env.close()
     if not fast_mode:
         pygame.quit()
+    return results
+
 
 
 if __name__ == "__main__":
@@ -162,4 +191,4 @@ if __name__ == "__main__":
     # watch_agent(model_path="exp_20251112_173240/checkpoints/best_model_improved_full.pt", debug=False, episodes=3, use_normalization=True, fast_mode=True)
 
     # Por defecto, modo visual:
-    watch_agent(model_path="exp_20251112_173240/checkpoints/best_model_improved_full.pt", debug=True, episodes=3, fps=30, use_normalization=True, fast_mode=True)
+    watch_agent(model_path="experiments/exp_20251112_205344/checkpoints/best_model_improved_full.pt", debug=False, episodes=3, fps=30, use_normalization=True, fast_mode=True, print_episode_summary=True)

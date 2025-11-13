@@ -27,8 +27,14 @@ class TensorBoardLogger:
         """
         if log_dir is None:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            log_dir = f'runs/PPO_{timestamp}_{comment}' if comment else f'runs/PPO_{timestamp}'
-        
+            # Agregar microsegundos para asegurar unicidad
+            import time
+            microseconds = int((time.time() % 1) * 1000000)
+            if comment:
+                log_dir = f'runs/PPO_{timestamp}_{microseconds}_{comment}'
+            else:
+                log_dir = f'runs/PPO_{timestamp}_{microseconds}'
+
         self.writer = SummaryWriter(log_dir=log_dir)
         self.log_dir = log_dir
         print(f"📊 TensorBoard iniciado: {log_dir}")
