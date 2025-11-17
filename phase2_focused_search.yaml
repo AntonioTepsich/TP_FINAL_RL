@@ -1,0 +1,54 @@
+# ============================================================================
+# PHASE 2: FOCUSED SEARCH - Búsqueda Fina alrededor de la mejor config Fase 1
+# ============================================================================
+# Baseline: Mejor config Fase 1
+#   hidden_size: 128
+#   lr_start: 0.001
+#   lr_schedule: linear
+#   ent_start: 0.05
+#   ent_schedule: linear
+#   lr_end: 1e-5
+#   ent_end: 0.005
+# Estrategia: Explorar valores cercanos y combinaciones finas
+# ============================================================================
+
+strategy: random
+n_trials: 8
+seed: 123
+
+search_space:
+  lr_start:
+    - 0.0007   # Un poco menor
+    - 0.001    # Mejor valor Fase 1
+    - 0.0015   # Un poco mayor
+
+  lr_end:
+    - 1e-5     # Igual que Fase 1
+    - 5e-6     # Más bajo (decaimiento más fuerte)
+    - 2e-5     # Más alto (menos decaimiento)
+
+  lr_schedule:
+    - linear   # Mejor valor Fase 1
+
+  hidden_size:
+    - 128      # Mejor valor Fase 1
+    - 192      # Un poco mayor
+
+  ent_start:
+    - 0.03     # Menos exploración inicial
+    - 0.05     # Mejor valor Fase 1
+    - 0.07     # Más exploración inicial
+
+  ent_end:
+    - 0.003    # Más bajo (menos exploración al final)
+    - 0.005    # Mejor valor Fase 1
+    - 0.008    # Más alto (más exploración al final)
+
+  ent_schedule:
+    - linear   # Mejor valor Fase 1
+
+# Otros hiperparámetros se mantienen fijos (los de la mejor config Fase 1)
+# Puedes ajustar n_trials según recursos disponibles
+
+# Ejemplo de ejecución:
+# python run_experiment.py --config config_template.yaml --search --search-config phase2_focused_search.yaml
