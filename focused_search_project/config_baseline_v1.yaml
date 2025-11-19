@@ -1,0 +1,29 @@
+# config_flappy_v1.yaml
+n_envs: 16
+rollout_steps: 256
+total_steps: 1000000
+
+hidden_size: 128
+
+lr_start: 0.0015
+lr_end: 1.0e-5
+lr_schedule: cosine
+
+ent_start: 0.015
+ent_end: 0.003
+ent_schedule: linear
+
+gamma: 0.99
+lambda_gae: 0.95
+
+clip_epsilon: 0.2
+vf_coef: 0.5
+max_grad_norm: 0.5
+
+epochs_per_update: 4
+minibatch_size: 1024
+
+normalize_obs: true
+device: "cpu"
+seed: 0         # este valor lo va a pisar el search
+

@@ -8,7 +8,7 @@ from watch_play import watch_agent, VectorActorCritic
 
 EXPERIMENTS_DIR = "experiments"
 CHECKPOINT_NAME = "best_model_improved_full.pt"
-pattern = os.path.join(EXPERIMENTS_DIR, "exp_*/checkpoints/", CHECKPOINT_NAME)
+pattern = os.path.join(EXPERIMENTS_DIR, "search_*/checkpoints/", CHECKPOINT_NAME)
 checkpoints = glob.glob(pattern)
 
 if not checkpoints:
