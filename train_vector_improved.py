@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import flappy_bird_gymnasium
 from ppo import PPODiagnostic
-from tensorboard_logger import TensorBoardLogger
+from tools.tensorboard_logger import TensorBoardLogger
 import warnings
 import argparse
 import os
@@ -267,7 +267,7 @@ if __name__ == "__main__":
     gcs_manager = None
     if args.gcs_bucket:
         try:
-            from gcs_manager import GCSManager
+            from tools.gcs_manager import GCSManager
             gcs_manager = GCSManager(
                 bucket_name=args.gcs_bucket,
                 project_id=args.gcs_project,
