@@ -5,6 +5,10 @@ import flappy_bird_gymnasium
 import pygame
 import numpy as np
 
+MODEL_PATH_NORM = "best_model_improved_full.pt"  # Usar el archivo con estadísticas
+MODEL_PATH_NO_NORM = "best_model_improved.pt"  # Usar el archivo sin estadísticas
+
+
 # ============================================================================
 # MODELO (copiado de train_improved.py)
 # ============================================================================
@@ -26,8 +30,8 @@ class VectorActorCritic(nn.Module):
         value = self.value_head(features)
         return logits, value
 
-MODEL_PATH_NORM = "best_model_improved_full.pt"  # ✅ Usar el archivo con estadísticas
-MODEL_PATH_NO_NORM = "best_model_improved.pt"  # ✅ Usar el archivo sin estadísticas
+
+
 def watch_agent(
     model_path=MODEL_PATH_NO_NORM,
     episodes=5,
@@ -36,7 +40,7 @@ def watch_agent(
     use_normalization=None,
     fast_mode=False,
     print_episode_summary=True,
-    policy_mode="deterministic"  # ⬅️ NUEVO: "deterministic" | "stochastic" | "auto"
+    policy_mode="deterministic"  # "deterministic" | "stochastic"
 ):
     """
     Ejecuta el agente entrenado en el entorno Flappy Bird.
@@ -44,7 +48,6 @@ def watch_agent(
     policy_mode:
         - "deterministic": usa argmax
         - "stochastic": usa sample() (como PPO en training)
-        - "auto": equivalente a deterministic (compatibilidad)
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -117,7 +120,7 @@ def watch_agent(
                 obs_t = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
 
             # -------------------------------------------------
-            # 🔥 ELECCIÓN DE ACCIÓN (determinista / estocástica)
+            # ELECCIÓN DE ACCIÓN (determinista / estocástica)
             # -------------------------------------------------
             with torch.no_grad():
                 logits, value = model(obs_t)
@@ -183,20 +186,8 @@ def watch_agent(
 
 
 if __name__ == "__main__":
-    # Opciones de uso:
-    #
-    # 1. Modo visual (render):
-    #    watch_agent(..., fast_mode=False)
-    #
-    # 2. Modo rápido (sin render, solo score):
-    #    watch_agent(..., fast_mode=True)
-    #
-    # Ejemplo modo visual:
-    # watch_agent(model_path="exp_20251112_173240/checkpoints/best_model_improved_full.pt", debug=True, episodes=3, fps=30, use_normalization=True, fast_mode=False)
-    #
-    # Ejemplo modo rápido:
-    # watch_agent(model_path="exp_20251112_173240/checkpoints/best_model_improved_full.pt", debug=False, episodes=3, use_normalization=True, fast_mode=True)
+    # exp_20251112_205344
+    # search_20251114_010504_trial008_a770b73c
 
-    # Por defecto, modo visual:
-    results = watch_agent(model_path="exp_old/search_20251113_224949_trial005_d1d63997/checkpoints/best_model_improved_full.pt", debug=False, episodes=3, fps=30, use_normalization=True, fast_mode=True, print_episode_summary=True)
+    results = watch_agent(model_path="exp_old/exp_20251112_205344/checkpoints/best_model_improved_full.pt", debug=False, episodes=3, fps=30, use_normalization=True, fast_mode=True, print_episode_summary=True, policy_mode="deterministic")
     # print("Resultados:", results)
