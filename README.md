@@ -160,3 +160,10 @@ El modelo aprende progresivamente a:
 Los mejores modelos logran superar múltiples obstáculos consecutivamente.
 
 ---
+
+## 📁 Evaluaciones
+
+Las evaluaciones completas y resultados adicionales están disponibles en la siguiente carpeta de Google Drive:
+
+[Evaluaciones - Google Drive](https://drive.google.com/drive/folders/1esKJS97e0Ws1jOa9FZXQD6lc1lXqItym?usp=sharing)
+---
