@@ -1,13 +1,4 @@
-"""
-🚀 VERSIÓN MEJORADA CON TODAS LAS FIXES DE LA CHECKLIST
-- Normalización de observaciones
-- Métricas PPO completas
-- LR y entropy schedules
-- Logging detallado
-- TensorBoard logging completo
-- GCS Integration (Google Cloud Storage)
-- CLI arguments support
-"""
+
 import gymnasium as gym
 import numpy as np
 import torch
@@ -21,9 +12,6 @@ import os
 from pathlib import Path
 warnings.filterwarnings('ignore')
 
-# ============================================================================
-# WRAPPERS
-# ============================================================================
 class NormalizeObservation(gym.ObservationWrapper):
     """Normaliza observaciones online"""
     def __init__(self, env, epsilon=1e-8):
@@ -46,11 +34,8 @@ class NormalizeObservation(gym.ObservationWrapper):
         
         return (obs - self.running_mean) / (np.sqrt(self.running_var) + self.epsilon)
 
-# ============================================================================
-# MODELO
-# ============================================================================
 class VectorActorCritic(nn.Module):
-    def __init__(self, obs_dim=180, n_actions=2, hidden=256):  # ← AJUSTADO A 180!
+    def __init__(self, obs_dim=180, n_actions=2, hidden=256):
         super().__init__()
         self.shared = nn.Sequential(
             nn.Linear(obs_dim, hidden),
@@ -75,9 +60,6 @@ class VectorActorCritic(nn.Module):
         ent = dist.entropy()
         return a, logp, ent, v
 
-# ============================================================================
-# VEC ENV
-# ============================================================================
 class VecEnv:
     def __init__(self, n_envs=16, normalize=True):
         if normalize:
@@ -126,7 +108,7 @@ class VecEnv:
             env.close()
     
     def get_normalization_stats(self):
-        """Obtiene las estadísticas de normalización del primer env (todos comparten la misma)"""
+        """Obtiene las estadísticas de normalización del primer env"""
         if isinstance(self.envs[0], NormalizeObservation):
             return {
                 'mean': self.envs[0].running_mean.copy(),
@@ -135,9 +117,6 @@ class VecEnv:
             }
         return None
 
-# ============================================================================
-# GAE
-# ============================================================================
 def gae_advantages(rewards, values, dones, gamma=0.99, lam=0.95):
     T = len(rewards)
     advantages = torch.zeros(T)
@@ -152,9 +131,6 @@ def gae_advantages(rewards, values, dones, gamma=0.99, lam=0.95):
     returns = advantages + values[:-1]
     return advantages, returns
 
-# ============================================================================
-# SCHEDULES
-# ============================================================================
 def linear_schedule(start, end, progress):
     """Linear interpolation from start to end"""
     return start + (end - start) * progress
@@ -163,9 +139,6 @@ def cosine_schedule(start, end, progress):
     """Cosine annealing from start to end"""
     return end + (start - end) * 0.5 * (1 + np.cos(np.pi * progress))
 
-# ============================================================================
-# ARGUMENT PARSER
-# ============================================================================
 def parse_args():
     """Parse command line arguments for training configuration."""
     parser = argparse.ArgumentParser(description="Train PPO agent for Flappy Bird with GCS support")
@@ -228,27 +201,19 @@ def get_schedule_fn(schedule_type):
     else:
         raise ValueError(f"Unknown schedule type: {schedule_type}")
 
-# ============================================================================
-# MAIN
-# ============================================================================
 if __name__ == "__main__":
     args = parse_args()
-    print("🚀 VERSIÓN MEJORADA - CON TODAS LAS FIXES + TENSORBOARD + GCS")
-    print("=" * 70)
-
-    # Set seed if provided
     if args.seed is not None:
         torch.manual_seed(args.seed)
         np.random.seed(args.seed)
-        print(f"🎲 Seed: {args.seed}")
+        print(f" Seed: {args.seed}")
 
     # Device
     device = args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"📱 Device: {device}")
+    print(f" Device: {device}")
     if device == "cuda":
-        print(f"🎮 GPU: {torch.cuda.get_device_name(0)}")
+        print(f" GPU: {torch.cuda.get_device_name(0)}")
 
-    # Get configuration from args
     N_ENVS = args.n_envs
     T = args.rollout_steps
     TOTAL_STEPS = args.total_steps
@@ -258,12 +223,11 @@ if __name__ == "__main__":
     ENT_START = args.ent_start
     ENT_END = args.ent_end
 
-    print(f"⚙️  {N_ENVS} envs × {T} steps")
-    print(f"🎯 Target: {TOTAL_STEPS:,} steps")
-    print(f"📊 LR schedule: {LR_START:.0e} → {LR_END:.0e} ({args.lr_schedule})")
-    print(f"🎲 Entropy schedule: {ENT_START:.3f} → {ENT_END:.3f} ({args.ent_schedule})")
+    print(f" {N_ENVS} envs × {T} steps")
+    print(f" Target: {TOTAL_STEPS:,} steps")
+    print(f" LR schedule: {LR_START:.0e} → {LR_END:.0e} ({args.lr_schedule})")
+    print(f" Entropy schedule: {ENT_START:.3f} → {ENT_END:.3f} ({args.ent_schedule})")
 
-    # Initialize GCS manager if bucket provided
     gcs_manager = None
     if args.gcs_bucket:
         try:
@@ -273,14 +237,13 @@ if __name__ == "__main__":
                 project_id=args.gcs_project,
                 experiment_id=args.experiment_id
             )
-            print(f"☁️  GCS enabled: gs://{args.gcs_bucket}")
-            print(f"📦 Experiment ID: {gcs_manager.experiment_id}")
+            print(f" GCS enabled: gs://{args.gcs_bucket}")
+            print(f" Experiment ID: {gcs_manager.experiment_id}")
         except Exception as e:
-            print(f"⚠️  GCS initialization failed: {e}")
+            print(f"  GCS initialization failed: {e}")
             print("   Continuing without GCS...")
             gcs_manager = None
 
-    print("=" * 70)
 
     # Get schedule functions
     lr_schedule_fn = get_schedule_fn(args.lr_schedule)
@@ -313,11 +276,9 @@ if __name__ == "__main__":
         'seed': args.seed
     }
 
-    # Save config to GCS if enabled
     if gcs_manager:
         gcs_manager.save_config(config)
 
-    # Log hiperparámetros iniciales como texto
     hparams_text = f"""
     ## Hyperparameters
     - **N_ENVS**: {N_ENVS}
@@ -342,17 +303,14 @@ if __name__ == "__main__":
     """
     logger.log_text("Configuration", hparams_text)
 
-    # Crear ambientes CON normalización
     vec = VecEnv(n_envs=N_ENVS, normalize=args.normalize_obs)
     obs = vec.reset()
     obs_dim = obs.shape[1]
 
     print(f"\n✅ Observaciones normalizadas: dim={obs_dim}")
 
-    # Modelo
     model = VectorActorCritic(obs_dim=obs_dim, n_actions=2, hidden=args.hidden_size)
 
-    # Agent con diagnósticos (verbose=False para no spammear)
     agent = PPODiagnostic(
         model,
         lr=LR_START,
@@ -361,13 +319,13 @@ if __name__ == "__main__":
         vf_coef=args.vf_coef,
         max_grad_norm=args.max_grad_norm,
         device=device,
-        verbose=False  # Solo mostraremos logs custom
+        verbose=False 
     )
     
     global_steps = 0
     episode_rewards = []
     episode_lengths = []
-    episode_scores = []  # Para trackear tubos pasados (score del juego)
+    episode_scores = []
     best_mean_reward = -float('inf')
     update_count = 0
     
@@ -379,12 +337,10 @@ if __name__ == "__main__":
         while global_steps < TOTAL_STEPS:
             rollout_start = time.time()
 
-            # Update schedules
             progress = global_steps / TOTAL_STEPS
             current_lr = lr_schedule_fn(LR_START, LR_END, progress)
             current_ent = ent_schedule_fn(ENT_START, ENT_END, progress)
 
-            # Aplicar schedules
             for param_group in agent.opt.param_groups:
                 param_group['lr'] = current_lr
             agent.ent_coef = current_ent
@@ -396,7 +352,6 @@ if __name__ == "__main__":
             val_buf = []
             done_buf = []
             
-            # Rollout
             for _ in range(T):
                 obs_t = torch.from_numpy(obs).float().to(device)
                 with torch.no_grad():
@@ -410,7 +365,6 @@ if __name__ == "__main__":
                     if 'episode' in info:
                         episode_rewards.append(info['episode']['r'])
                         episode_lengths.append(info['episode']['l'])
-                        # Capturar score del juego (tubos pasados)
                         if 'score' in info:
                             episode_scores.append(info['score'])
 
@@ -427,7 +381,6 @@ if __name__ == "__main__":
             rollout_time = time.time() - rollout_start
             learn_start = time.time()
             
-            # Calcular ventajas
             with torch.no_grad():
                 last_v = model.forward(torch.from_numpy(obs).float().to(device))[1].squeeze(-1).cpu()
 
@@ -454,19 +407,13 @@ if __name__ == "__main__":
 
             batch = (obs_t, acts_t, logp_t0, rets, advs, vals_old)
 
-            # Update con métricas
             metrics = agent.update(batch, epochs=args.epochs_per_update, minibatch_size=args.minibatch_size)
             update_count += 1
             
             learn_time = time.time() - learn_start
             
-            # ============================================================
-            # TENSORBOARD LOGGING (cada update)
-            # ============================================================
-            # Métricas de PPO
             logger.log_ppo_metrics(global_steps, metrics)
             
-            # Hiperparámetros
             logger.log_hyperparameters(
                 global_steps, 
                 current_lr, 
@@ -495,36 +442,23 @@ if __name__ == "__main__":
                     norm_stats['var']
                 )
             
-            # Métricas de episodios (si hay episodios completados)
             if episode_rewards:
                 logger.log_episode_metrics(global_steps, episode_rewards, episode_lengths)
             
-            # ============================================================
-            # MÉTRICAS ESPECÍFICAS DE FLAPPY BIRD
-            # ============================================================
-            # 1. Action Distribution (detectar colapso de exploración)
             logger.log_action_distribution(global_steps, acts_t)
             
-            # 2. Game Score (tubos pasados - métrica real del juego)
             if episode_scores:
                 logger.log_game_score(global_steps, episode_scores)
             
-            # 3. Value Predictions Quality (qué tan bien predice el crítico)
             logger.log_value_predictions(global_steps, vals_old, rets)
             
-            # 4. Gradient Health (detectar explosion/vanishing)
             logger.log_gradient_health(global_steps, model)
-            # ============================================================
             
-            # Pesos del modelo (cada 50 updates para no saturar)
             if update_count % 50 == 0:
                 logger.log_model_weights(global_steps, model)
             
-            # ============================================================
-            # CONSOLE LOGGING (cada 10 segundos)
-            # ============================================================
             current_time = time.time()
-            if current_time - last_log_time > 10.0:  # Cada 10s
+            if current_time - last_log_time > 10.0:
                 elapsed = current_time - start_time
                 steps_per_sec = global_steps / elapsed
                 
@@ -541,10 +475,10 @@ if __name__ == "__main__":
                 print(f"Episodes: {len(episode_rewards):>5} | Reward: {mean_rew:>6.2f}")
                 print(f"Speed: {steps_per_sec:>6.0f} sps | ETA: {eta_min:>4.1f}m")
                 print(f"Roll: {rollout_time:.2f}s | Learn: {learn_time:.2f}s")
-                print(f"\n📊 Schedules:")
+                print(f"\n Schedules:")
                 print(f"   LR:      {current_lr:.2e}")
                 print(f"   Entropy: {current_ent:.4f}")
-                print(f"\n📈 PPO Metrics:")
+                print(f"\n PPO Metrics:")
                 print(f"   Policy Loss:  {metrics['policy_loss']:>8.4f}")
                 print(f"   Value Loss:   {metrics['value_loss']:>8.4f}")
                 print(f"   Entropy:      {metrics['entropy']:>8.4f}")
@@ -555,11 +489,11 @@ if __name__ == "__main__":
                 
                 # Warnings
                 if abs(metrics['kl_div']) > 0.03:
-                    print(f"   ⚠️  KL alto! Considera bajar LR")
+                    print(f"  KL alto! Considera bajar LR")
                 if metrics['explained_var'] < 0.2:
-                    print(f"   ⚠️  EV bajo! Crítico aprende mal")
+                    print(f"  EV bajo! Crítico aprende mal")
                 if metrics['entropy'] < 0.01:
-                    print(f"   ⚠️  Entropía muy baja! Política muy determinista")
+                    print(f"   Entropía muy baja! Política muy determinista")
                 
                 print(f"{'='*70}")
                 
@@ -569,17 +503,14 @@ if __name__ == "__main__":
                 if episode_rewards and mean_rew > best_mean_reward:
                     best_mean_reward = mean_rew
 
-                    # Guardar solo el modelo (backward compatibility)
                     torch.save(model.state_dict(), 'best_model_improved.pt')
 
-                    # Guardar modelo + estadísticas de normalización
                     save_dict = {
                         'model': model.state_dict(),
                         'best_reward': mean_rew,
                         'global_steps': global_steps
                     }
 
-                    # Agregar estadísticas de normalización si existen
                     norm_stats = vec.get_normalization_stats()
                     if norm_stats is not None:
                         save_dict['obs_mean'] = norm_stats['mean']
@@ -589,12 +520,10 @@ if __name__ == "__main__":
                     torch.save(save_dict, 'best_model_improved_full.pt')
                     print(f"✅ Best model saved! Reward: {mean_rew:.2f}\n")
 
-                    # Upload to GCS
                     if gcs_manager:
                         gcs_manager.upload_file('best_model_improved.pt', 'checkpoints/best_model_improved.pt', async_upload=True)
                         gcs_manager.upload_file('best_model_improved_full.pt', 'checkpoints/best_model_improved_full.pt', async_upload=True)
 
-            # Checkpoints
             if global_steps % args.checkpoint_interval == 0 and global_steps > 0:
                 checkpoint_path = f'checkpoint_improved_{global_steps}.pt'
                 torch.save({
@@ -606,25 +535,20 @@ if __name__ == "__main__":
                 }, checkpoint_path)
                 print(f"💾 Checkpoint saved: {global_steps:,}\n")
 
-                # Upload to GCS
                 if gcs_manager:
                     gcs_manager.upload_file(checkpoint_path, f'checkpoints/{checkpoint_path}', async_upload=True)
 
-                    # Upload TensorBoard logs periodically
                     if hasattr(logger, 'log_dir'):
                         gcs_manager.upload_directory(logger.log_dir, 'tensorboard', pattern='events.*', async_upload=True)
     
     finally:
-        # Close environments and logger
         vec.close()
         logger.close()
 
-        # Wait for any pending GCS uploads
         if gcs_manager:
             print("\n⏳ Esperando uploads a GCS...")
             gcs_manager.wait_for_uploads(timeout=60)
 
-    # Log hiperparámetros finales para comparación
     final_metrics = {}
     if episode_rewards:
         final_metrics['final_mean_reward'] = np.mean(episode_rewards[-100:]) if len(episode_rewards) >= 100 else np.mean(episode_rewards)
@@ -632,7 +556,6 @@ if __name__ == "__main__":
         final_metrics['total_episodes'] = len(episode_rewards)
         final_metrics['best_reward'] = best_mean_reward
 
-    # Add more detailed metrics
     if episode_scores:
         final_metrics['final_mean_score'] = np.mean(episode_scores[-100:]) if len(episode_scores) >= 100 else np.mean(episode_scores)
         final_metrics['best_score'] = max(episode_scores) if episode_scores else 0
@@ -663,29 +586,24 @@ if __name__ == "__main__":
 
     logger.log_hparams(hparams, final_metrics)
 
-    # Save metrics to GCS
     if gcs_manager:
         gcs_manager.save_metrics(final_metrics, 'final_metrics.json')
 
-        # Final upload of TensorBoard logs
         if hasattr(logger, 'log_dir') and os.path.exists(logger.log_dir):
-            print("📤 Uploading final TensorBoard logs to GCS...")
+            print("Uploading final TensorBoard logs to GCS...")
             gcs_manager.upload_directory(logger.log_dir, 'tensorboard', pattern='*', async_upload=False)
 
-        # Wait for final uploads
         gcs_manager.wait_for_uploads()
-        print(f"✅ All files uploaded to gs://{args.gcs_bucket}/experiments/{gcs_manager.experiment_id}/")
+        print(f"All files uploaded to gs://{args.gcs_bucket}/experiments/{gcs_manager.experiment_id}/")
 
-    print("\n" + "=" * 70)
-    print(f"✅ COMPLETADO en {total_time:.2f}min")
+    print(f"COMPLETADO en {total_time:.2f}min")
     if episode_rewards:
-        print(f"🎯 Mejor reward: {max(episode_rewards):.2f}")
-        print(f"📈 Reward final (últimos 100): {np.mean(episode_rewards[-100:]):.2f}")
+        print(f" Mejor reward: {max(episode_rewards):.2f}")
+        print(f" Reward final (últimos 100): {np.mean(episode_rewards[-100:]):.2f}")
     if episode_scores:
-        print(f"🎮 Mejor score (tubos): {max(episode_scores)}")
-        print(f"📊 Score final (últimos 100): {np.mean(episode_scores[-100:]):.2f}")
-    print(f"🚀 Velocidad promedio: {TOTAL_STEPS/(total_time*60):.0f} steps/sec")
-    print(f"🔄 Updates totales: {update_count}")
+        print(f" Mejor score (tubos): {max(episode_scores)}")
+        print(f" Score final (últimos 100): {np.mean(episode_scores[-100:]):.2f}")
+    print(f" Velocidad promedio: {TOTAL_STEPS/(total_time*60):.0f} steps/sec")
+    print(f" Updates totales: {update_count}")
     if gcs_manager:
-        print(f"☁️  Experiment ID: {gcs_manager.experiment_id}")
-    print("=" * 70)
+        print(f" Experiment ID: {gcs_manager.experiment_id}")

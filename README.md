@@ -26,14 +26,32 @@ Este proyecto implementa un agente de Reinforcement Learning utilizando el algor
 TP_FINAL_RL/
 ├── ppo.py                      # Implementación del algoritmo PPO-Clip
 ├── train_vector_improved.py    # Script principal de entrenamiento
-├── watch_play.py              # Visualización del agente entrenado
-├── tensorboard_logger.py      # Sistema de logging para TensorBoard
-├── requirements.txt           # Dependencias del proyecto
-├── best_model_improved.pt     # Modelo entrenado (checkpoint)
-├── checks/                    # Diagnósticos y verificaciones
-│   ├── check_obs.py
-│   └── DIAGNOSTICOS_README.md
-└── runs/                      # Logs de TensorBoard
+├── run_experiment.py           # Script para ejecutar experimentos personalizados
+├── evaluate.py                 # Script para evaluar el agente entrenado
+├── jugar.py                    # Script alternativo para jugar con el agente
+├── watch_play.py               # Visualización del agente entrenado
+├── requirements.txt            # Dependencias del proyecto
+├── tensorboard_logger.py       # Sistema de logging para TensorBoard
+├── tools/                      # Utilidades y helpers
+│   ├── gcs_manager.py
+│   ├── tensorboard_logger.py
+│   └── ...
+├── probe_envs/                 # Scripts de prueba y comparación de entornos
+│   ├── train_ppo_custom_acrobot.py
+│   ├── train_ppo_custom_cartpole_baseline.py
+│   └── ...
+├── focused_search_project/     # Configuraciones de búsqueda y experimentos
+│   ├── config_baseline_v1.yaml
+│   └── ...
+├── experiments/                # Resultados de experimentos recientes
+│   └── ...
+├── exp_old/                    # Resultados de experimentos antiguos
+│   └── ...
+├── evaluation_results/         # Resultados de evaluaciones (CSV)
+│   └── ...
+├── tensorboard/                # Carpeta de logs de TensorBoard
+│   └── runs/
+└── __pycache__/                # Archivos temporales de Python
 ```
 
 ---
@@ -142,9 +160,3 @@ El modelo aprende progresivamente a:
 Los mejores modelos logran superar múltiples obstáculos consecutivamente.
 
 ---
-
-## 🛠️ Diagnósticos
-
-La carpeta `checks/` contiene herramientas de diagnóstico:
-- `check_obs.py`: Verificación de dimensiones de observaciones
-- `DIAGNOSTICOS_README.md`: Guía de troubleshooting

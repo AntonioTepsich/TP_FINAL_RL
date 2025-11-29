@@ -1,5 +1,5 @@
 """
-📊 TensorBoard Logger para PPO Training
+ TensorBoard Logger para PPO Training
 Registra todas las métricas importantes del entrenamiento
 """
 from torch.utils.tensorboard import SummaryWriter
@@ -27,7 +27,6 @@ class TensorBoardLogger:
         """
         if log_dir is None:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            # Agregar microsegundos para asegurar unicidad
             import time
             microseconds = int((time.time() % 1) * 1000000)
             if comment:
@@ -37,7 +36,7 @@ class TensorBoardLogger:
 
         self.writer = SummaryWriter(log_dir=log_dir)
         self.log_dir = log_dir
-        print(f"📊 TensorBoard iniciado: {log_dir}")
+        print(f"TensorBoard iniciado: {log_dir}")
         print(f"   Para visualizar: tensorboard --logdir=runs")
     
     def log_episode_metrics(self, global_step, episode_rewards, episode_lengths=None):
@@ -64,7 +63,6 @@ class TensorBoardLogger:
         self.writer.add_scalar('Episode/Std_Reward', std_reward, global_step)
         self.writer.add_scalar('Episode/Total_Episodes', len(episode_rewards), global_step)
         
-        # Longitudes de episodio si están disponibles
         if episode_lengths:
             mean_length = np.mean(episode_lengths[-100:]) if len(episode_lengths) >= 100 else np.mean(episode_lengths)
             self.writer.add_scalar('Episode/Mean_Length', mean_length, global_step)
@@ -98,10 +96,10 @@ class TensorBoardLogger:
         self.writer.add_scalar('PPO/Ratio_Mean', metrics['ratio_mean'], global_step)
         self.writer.add_scalar('PPO/Ratio_Std', metrics['ratio_std'], global_step)
         
-        # Explained Variance (crítico para verificar que el crítico aprende)
+        # Explained Variance 
         self.writer.add_scalar('PPO/Explained_Variance', metrics['explained_var'], global_step)
         
-        # Warnings como scalars binarios (0 o 1)
+        # Warnings como scalars binarios 
         self.writer.add_scalar('Warnings/High_KL', 1.0 if abs(metrics['kl_div']) > 0.03 else 0.0, global_step)
         self.writer.add_scalar('Warnings/Low_Explained_Var', 1.0 if metrics['explained_var'] < 0.2 else 0.0, global_step)
         self.writer.add_scalar('Warnings/Low_Entropy', 1.0 if metrics['entropy'] < 0.01 else 0.0, global_step)
@@ -156,11 +154,9 @@ class TensorBoardLogger:
             obs_var: Varianza de observaciones
         """
         if isinstance(obs_mean, np.ndarray):
-            # Log la norma de la media y varianza
             self.writer.add_scalar('Normalization/Mean_Norm', np.linalg.norm(obs_mean), global_step)
             self.writer.add_scalar('Normalization/Var_Norm', np.linalg.norm(obs_var), global_step)
             
-            # Log valores individuales como histogramas
             self.writer.add_histogram('Normalization/Obs_Mean', obs_mean, global_step)
             self.writer.add_histogram('Normalization/Obs_Var', obs_var, global_step)
     
@@ -213,18 +209,15 @@ class TensorBoardLogger:
         if len(actions) == 0:
             return
         
-        # Flatten si es necesario
         actions = actions.flatten()
         
-        # Contar frecuencias
         unique, counts = np.unique(actions, return_counts=True)
         
-        # Log frecuencia de cada acción
-        for action in range(2):  # Flappy Bird tiene 2 acciones
+        for action in range(2):  
             freq = counts[unique == action][0] / len(actions) if action in unique else 0.0
             self.writer.add_scalar(f'Actions/Action_{action}_Frequency', freq, global_step)
         
-        # Balance score (qué tan equilibrado está)
+        # Balance score 
         if len(unique) == 2:
             balance = min(counts) / max(counts)
             self.writer.add_scalar('Actions/Balance_Score', balance, global_step)
@@ -372,14 +365,10 @@ class TensorBoardLogger:
         self.close()
 
 
-# Ejemplo de uso
 if __name__ == "__main__":
-    # Crear logger
     logger = TensorBoardLogger(comment="test")
     
-    # Simular algunas métricas
     for step in range(100):
-        # Métricas de episodio
         logger.log_episode_metrics(
             global_step=step,
             episode_rewards=[10 + step * 0.5 + np.random.randn() for _ in range(10)]
@@ -415,4 +404,4 @@ if __name__ == "__main__":
         )
     
     logger.close()
-    print("✅ Test completado. Ejecuta: tensorboard --logdir=runs")
+    print(" Test completado. Ejecuta: tensorboard --logdir=runs")

@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Rutas correctas según tu salida de ls
 SB3_FILE = Path("runs_sb3/cartpole_ppo/sb3_ppo_cartpole_rewards.npy")
 PPOC_FILE = Path("runs_custom/cartpole_ppo_c/ppo_c_cartpole_rewards.npy")
 

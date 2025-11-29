@@ -170,7 +170,6 @@ class GCSManager:
         try:
             blob = self.bucket.blob(gcs_path)
 
-            # Create parent directories
             Path(local_path).parent.mkdir(parents=True, exist_ok=True)
 
             blob.download_to_filename(local_path)
@@ -198,7 +197,6 @@ class GCSManager:
         """
         config_path = self.local_cache_dir / "config.json"
 
-        # Add metadata
         full_config = {
             "experiment_id": self.experiment_id,
             "timestamp": datetime.now().isoformat(),

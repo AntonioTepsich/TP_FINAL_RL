@@ -64,10 +64,8 @@ def build_command_args(config: Dict[str, Any], base_config: Dict[str, Any]) -> L
     """Build command line arguments from configuration."""
     args = ['python', 'train_vector_improved.py']
 
-    # Merge base config with search config (search config takes precedence)
     full_config = {**base_config, **config}
 
-    # Convert config to command line arguments
     arg_mapping = {
         'n_envs': '--n-envs',
         'rollout_steps': '--rollout-steps',
@@ -113,33 +111,28 @@ def run_single_experiment(config: Dict[str, Any], base_config: Dict[str, Any], e
     print(json.dumps(config, indent=2))
     print("=" * 80 + "\n")
 
-    # Generate unique experiment ID if not provided
     if experiment_id is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         import uuid
         experiment_id = f"exp_{timestamp}_{str(uuid.uuid4())[:8]}"
 
-    # Add experiment_id to config if not already there
     if 'experiment_id' not in config:
         config['experiment_id'] = experiment_id
 
-    # Ensure each experiment has a unique comment for TensorBoard
     if 'comment' not in config:
         config['comment'] = experiment_id
 
-    # Build command
     cmd_args = build_command_args(config, base_config)
 
-    # Run training
     try:
         result = subprocess.run(cmd_args, check=True, capture_output=False, text=True)
         success = True
-        print("\n✅ Experiment completed successfully")
+        print("\nExperiment completed successfully")
     except subprocess.CalledProcessError as e:
         success = False
-        print(f"\n❌ Experiment failed with error code {e.returncode}")
+        print(f"\nExperiment failed with error code {e.returncode}")
     except KeyboardInterrupt:
-        print("\n⚠️ Experiment interrupted by user")
+        print("\nExperiment interrupted by user")
         raise
 
     return {
@@ -159,24 +152,21 @@ def run_hyperparameter_search(
     n_trials = search_config.get('n_trials', None)
     seed = search_config.get('seed', None)
 
-    # Generate configurations
     if strategy == 'grid':
         configs = generate_grid_search_configs(search_space)
-        print(f"🔍 Grid Search: {len(configs)} configurations")
+        print(f" Grid Search: {len(configs)} configurations")
     elif strategy == 'random':
         if n_trials is None:
             raise ValueError("n_trials must be specified for random search")
         configs = generate_random_search_configs(search_space, n_trials, seed)
-        print(f"🔍 Random Search: {len(configs)} configurations")
+        print(f" Random Search: {len(configs)} configurations")
     else:
         raise ValueError(f"Unknown search strategy: {strategy}")
 
-    # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     search_dir = Path(output_dir) / f"search_{timestamp}"
     search_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save search configuration
     save_search_config(
         {
             'strategy': strategy,
@@ -188,14 +178,12 @@ def run_hyperparameter_search(
         str(search_dir / 'search_config.yaml')
     )
 
-    # Run experiments
     results = []
     for i, config in enumerate(configs):
         print(f"\n{'='*80}")
         print(f"Experiment {i+1}/{len(configs)}")
         print(f"{'='*80}")
 
-        # Generate unique experiment ID for this configuration
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         import uuid
         experiment_id = f"search_{timestamp}_trial{i+1:03d}_{str(uuid.uuid4())[:8]}"
@@ -204,15 +192,13 @@ def run_hyperparameter_search(
             result = run_single_experiment(config, base_config, experiment_id=experiment_id)
             results.append(result)
 
-            # Save intermediate results
             with open(search_dir / 'results.json', 'w') as f:
                 json.dump(results, f, indent=2)
 
         except KeyboardInterrupt:
-            print("\n⚠️ Search interrupted by user")
+            print("\nSearch interrupted by user")
             break
 
-    # Save final results summary
     with open(search_dir / 'results_summary.json', 'w') as f:
         json.dump({
             'total_experiments': len(results),
@@ -221,8 +207,8 @@ def run_hyperparameter_search(
             'results': results
         }, f, indent=2)
 
-    print(f"\n✅ Search completed: {len(results)} experiments")
-    print(f"📁 Results saved to: {search_dir}")
+    print(f"\nSearch completed: {len(results)} experiments")
+    print(f"Results saved to: {search_dir}")
 
     return results
 
@@ -256,29 +242,26 @@ def main():
 
     args = parser.parse_args()
 
-    # Load base configuration
     if not Path(args.config).exists():
-        print(f"❌ Configuration file not found: {args.config}")
-        print("💡 Create a configuration file using config_template.yaml as reference")
+        print(f"Configuration file not found: {args.config}")
+        print("Create a configuration file using config_template.yaml as reference")
         sys.exit(1)
 
     base_config = load_config(args.config)
 
     if args.search:
-        # Hyperparameter search mode
         if args.search_config is None:
-            print("❌ --search-config is required when --search is enabled")
+            print("--search-config is required when --search is enabled")
             sys.exit(1)
 
         if not Path(args.search_config).exists():
-            print(f"❌ Search configuration file not found: {args.search_config}")
+            print(f"Search configuration file not found: {args.search_config}")
             sys.exit(1)
 
         search_config = load_config(args.search_config)
         run_hyperparameter_search(search_config, base_config, args.output_dir)
 
     else:
-        # Single run mode
         run_single_experiment({}, base_config)
 
 

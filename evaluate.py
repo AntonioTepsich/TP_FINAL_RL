@@ -7,10 +7,6 @@ import matplotlib.pyplot as plt
 
 from watch_play import watch_agent
 
-
-# ============================================
-# 1. Evaluar un modelo (stochastic / deterministic)
-# ============================================
 def evaluate_model(path, episodes=30, policy_mode="stochastic"):
     """
     Evalúa un checkpoint en varios episodios.
@@ -42,7 +38,6 @@ def evaluate_model(path, episodes=30, policy_mode="stochastic"):
     max_score = int(scores.max())
     std_score = float(scores.std())
 
-    # Métrica compuesta: promedio + un poco de max - penalty por varianza
     weighted = avg_score + 0.1 * max_score - 0.05 * std_score
 
     return {
@@ -54,12 +49,9 @@ def evaluate_model(path, episodes=30, policy_mode="stochastic"):
     }
 
 
-# ============================================
-# 2. Buscar checkpoints
-# ============================================
 EXPERIMENTS_DIR = "exp_old"
 CHECKPOINT_NAME = "best_model_improved_full.pt"
-EPISODES = 10  # podés subirlo si querés más precisión
+EPISODES = 10
 
 patterns = [
     os.path.join(EXPERIMENTS_DIR, "search_*/checkpoints", CHECKPOINT_NAME),
@@ -73,29 +65,23 @@ for patt in patterns:
 paths = sorted(paths)
 
 if not paths:
-    print("❌ No se encontraron checkpoints.")
+    print("No se encontraron checkpoints.")
     raise SystemExit
 
-print(f"🔍 Se encontraron {len(paths)} modelos para evaluar.")
+print(f"Se encontraron {len(paths)} modelos para evaluar.")
 
 
-# ============================================
-# 3. Directorio de resultados
-# ============================================
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 RESULTS_DIR = os.path.join("evaluation_results", timestamp)
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 
-# ============================================
-# 4. Evaluar todos los modelos
-# ============================================
 rows = []
 
 print("\n=== EVALUANDO MODELOS ===\n")
 
 for model_path in paths:
-    print(f"▶ Evaluando: {model_path}")
+    print(f"Evaluando: {model_path}")
 
     stoch = evaluate_model(model_path, episodes=EPISODES, policy_mode="stochastic")
     det = evaluate_model(model_path, episodes=EPISODES, policy_mode="deterministic")
@@ -116,12 +102,9 @@ for model_path in paths:
         }
     )
 
-print("\n✅ Evaluación completa.\n")
+print("\nEvaluación completa.\n")
 
 
-# ============================================
-# 5. Guardar resumen global en CSV
-# ============================================
 summary_csv = os.path.join(RESULTS_DIR, "summary.csv")
 with open(summary_csv, "w", newline="") as f:
     writer = csv.writer(f)
@@ -153,28 +136,20 @@ with open(summary_csv, "w", newline="") as f:
             ]
         )
 
-print(f"📄 Resumen guardado en: {summary_csv}")
+print(f"Resumen guardado en: {summary_csv}")
 
-
-# ============================================
-# 6. Ranking global (modo estocástico)
-# ============================================
 ranking = sorted(rows, key=lambda x: x["stoch_weighted"], reverse=True)
 
-print("\n=== 🏆 RANKING GLOBAL (modo estocástico) ===\n")
+print("\n=== RANKING GLOBAL (modo estocástico) ===\n")
 for r in ranking:
     print(
         f"{r['model_path']} → weighted={r['stoch_weighted']:.3f} | "
         f"avg={r['stoch_avg']:.2f} | max={r['stoch_max']} | std={r['stoch_std']:.2f}"
     )
 
-
-# ============================================
-# 7. Boxplot de scores estocásticos
-# ============================================
 labels = [
     os.path.basename(os.path.dirname(os.path.dirname(r["model_path"]))) for r in rows
-]  # nombre del experimento
+]
 data = [r["stoch_scores"] for r in rows]
 
 plt.figure(figsize=(max(8, len(labels) * 1.5), 6))
@@ -188,16 +163,11 @@ boxplot_path = os.path.join(RESULTS_DIR, "boxplot_scores_stochastic.png")
 plt.savefig(boxplot_path)
 plt.close()
 
-print(f"\n📊 Boxplot guardado en: {boxplot_path}")
+print(f"\n Boxplot guardado en: {boxplot_path}")
 
-
-# ============================================
-# 8. Guardar scores individuales por modelo (CSV)
-# ============================================
 for r in rows:
-    # ej: experiments/search_20251117_194722_trial007_577bb8a2/checkpoints/best_model_improved_full.pt
     model_path = r["model_path"]
-    exp_dir = os.path.dirname(os.path.dirname(model_path))  # …/search_.../
+    exp_dir = os.path.dirname(os.path.dirname(model_path)) 
     exp_name = os.path.basename(exp_dir)
 
     out_csv = os.path.join(RESULTS_DIR, f"{exp_name}_scores.csv")
@@ -212,5 +182,5 @@ for r in rows:
         for i, s in enumerate(r["det_scores"]):
             writer.writerow(["deterministic", i, s])
 
-print("\n📁 Scores individuales guardados por modelo en CSV.")
-print(f"📂 Carpeta de resultados: {RESULTS_DIR}\n")
+print("\n Scores individuales guardados por modelo en CSV.")
+print(f" Carpeta de resultados: {RESULTS_DIR}\n")
